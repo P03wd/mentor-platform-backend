@@ -9,7 +9,7 @@ const server = http.createServer(app);
 // ✅ USE ENV PORT
 const PORT = process.env.PORT || 5000;
 
-// ✅ SESSION TRACKING (IMPORTANT)
+// ✅ SESSION TRACKING
 const sessions = {};
 
 const io = new Server(server, {
@@ -22,7 +22,7 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // JOIN SESSION
+  // 🔗 JOIN SESSION
   socket.on("join-session", (sessionId) => {
     socket.join(sessionId);
 
@@ -39,6 +39,13 @@ io.on("connection", (socket) => {
       socket.emit("role", "receiver");
     }
 
+    // 🔥 THIS IS THE MOST IMPORTANT FIX
+    if (sessions[sessionId].length === 2) {
+      console.log("Both users joined → ready");
+
+      io.to(sessionId).emit("ready");
+    }
+
     console.log("Joined session:", sessionId);
   });
 
@@ -47,7 +54,7 @@ io.on("connection", (socket) => {
     io.to(sessionId).emit("receive-message", message);
   });
 
-  // 💻 CODE
+  // 💻 CODE SYNC
   socket.on("code-change", ({ sessionId, code }) => {
     socket.to(sessionId).emit("receive-code", code);
   });
@@ -65,24 +72,29 @@ io.on("connection", (socket) => {
     socket.to(sessionId).emit("ice-candidate", candidate);
   });
 
-  // 🔌 DISCONNECT
+  // 🔌 DISCONNECT CLEANUP
   socket.on("disconnect", () => {
-    console.log("User disconnected");
+    console.log("User disconnected:", socket.id);
 
     for (let sessionId in sessions) {
       sessions[sessionId] = sessions[sessionId].filter(
         (id) => id !== socket.id
       );
+
+      // 🧹 REMOVE EMPTY SESSION
+      if (sessions[sessionId].length === 0) {
+        delete sessions[sessionId];
+      }
     }
   });
 });
 
-// TEST ROUTE
+// ✅ TEST ROUTE
 app.get("/", (req, res) => {
   res.send("Server running 🚀");
 });
 
-// ✅ USE ENV PORT
+// ✅ START SERVER
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
