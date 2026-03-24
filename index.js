@@ -6,7 +6,6 @@ require("dotenv").config();
 const app = express();
 const server = http.createServer(app);
 
-// ✅ USE ENV PORT
 const PORT = process.env.PORT || 5000;
 
 // ✅ SESSION TRACKING
@@ -30,7 +29,12 @@ io.on("connection", (socket) => {
       sessions[sessionId] = [];
     }
 
-    sessions[sessionId].push(socket.id);
+    // ❌ PREVENT DUPLICATES (IMPORTANT FIX)
+    if (!sessions[sessionId].includes(socket.id)) {
+      sessions[sessionId].push(socket.id);
+    }
+
+    console.log("Users in session:", sessions[sessionId]);
 
     // ✅ ASSIGN ROLE
     if (sessions[sessionId].length === 1) {
@@ -39,9 +43,9 @@ io.on("connection", (socket) => {
       socket.emit("role", "receiver");
     }
 
-    // 🔥 THIS IS THE MOST IMPORTANT FIX
+    // ✅ ONLY TRIGGER READY WHEN EXACTLY 2 USERS
     if (sessions[sessionId].length === 2) {
-      console.log("Both users joined → ready");
+      console.log("🔥 Both users joined → sending ready");
 
       io.to(sessionId).emit("ready");
     }
@@ -60,14 +64,20 @@ io.on("connection", (socket) => {
   });
 
   // 🎥 WEBRTC SIGNALING
+
+  // OFFER
   socket.on("offer", ({ sessionId, offer }) => {
+    console.log("📤 Offer sent");
     socket.to(sessionId).emit("offer", offer);
   });
 
+  // ANSWER
   socket.on("answer", ({ sessionId, answer }) => {
+    console.log("📤 Answer sent");
     socket.to(sessionId).emit("answer", answer);
   });
 
+  // ICE
   socket.on("ice-candidate", ({ sessionId, candidate }) => {
     socket.to(sessionId).emit("ice-candidate", candidate);
   });
